@@ -2,3 +2,10 @@
 __pycache__/
 *.pyc
 .DS_Store
+
+# Generated shoggoth food
+transcripts/*.txt
+transcripts/*.json
+
+# Preserve transcript working directory
+!transcripts/.gitkeep
