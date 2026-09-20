@@ -44,7 +44,7 @@ from youtube_transcript_api import YouTubeTranscriptApi
 # ---------------------------------------------------------------------------
 
 REPO_ROOT = Path(__file__).resolve().parent
-TRANSCRIPT_DIR = Path.home() / "Downloads" / "YouTube Transcripts"
+TRANSCRIPT_DIR = Path.home() / "Downloads"
 
 DEFAULT_LANGUAGES = ["en"]
 
