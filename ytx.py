@@ -44,7 +44,7 @@ from youtube_transcript_api import YouTubeTranscriptApi
 # ---------------------------------------------------------------------------
 
 REPO_ROOT = Path(__file__).resolve().parent
-TRANSCRIPT_DIR = REPO_ROOT / "transcripts"
+TRANSCRIPT_DIR = Path.home() / "Downloads" / "YouTube Transcripts"
 
 DEFAULT_LANGUAGES = ["en"]
 
@@ -557,9 +557,7 @@ def write_outputs(
             if result.source == "LOCAL_MLX_WHISPER"
             else None
         ),
-        "text_file": str(
-            text_path.relative_to(REPO_ROOT)
-        ),
+        "text_file": str(text_path),
     }
 
     metadata_path.write_text(
@@ -681,9 +679,7 @@ def main() -> int:
         if existing is not None:
             print("STATUS=ALREADY_EXISTS")
             print(f"VIDEO_ID={video_id}")
-            print(
-                f"TRANSCRIPT={existing.relative_to(REPO_ROOT)}"
-            )
+            print(f"TRANSCRIPT={existing}")
             return 0
 
     title = get_video_title(url) or video_id
@@ -755,12 +751,8 @@ def main() -> int:
     print("STATUS=RETRIEVED")
     print(f"SOURCE={result.source}")
     print(f"LANGUAGE={result.language or 'UNKNOWN'}")
-    print(
-        f"TRANSCRIPT={text_path.relative_to(REPO_ROOT)}"
-    )
-    print(
-        f"METADATA={metadata_path.relative_to(REPO_ROOT)}"
-    )
+    print(f"TRANSCRIPT={text_path}")
+    print(f"METADATA={metadata_path}")
 
     return 0
 
