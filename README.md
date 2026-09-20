@@ -1,16 +1,14 @@
 # yt-transcript-generator
 
-YouTube transcripts for shoggoth preprocessing.
+A local utility for converting YouTube videos into plain-text transcript files for downstream analysis, summarization, and coding-agent workflows.
 
-A small local utility for turning YouTube videos into plain-text transcript files that can be read directly by Codex, ChatGPT, Claude, or other local coding-agent workflows.
+The tool prefers existing YouTube captions when available and can fall back to local speech-to-text transcription when necessary.
 
-This is not intended to be a web service or commercial transcription product.
-
-It is a local preprocessing appliance.
+It is designed as a lightweight preprocessing utility rather than a hosted service or commercial transcription platform.
 
 ---
 
-## Purpose
+## Overview
 
 The intended workflow is:
 
@@ -19,93 +17,59 @@ YouTube URL
     ↓
 yt-transcript-generator
     ↓
-transcripts/<video-id>.txt
+existing captions, if available
     ↓
-local AI agent reads transcript
+local speech-to-text fallback, if needed
     ↓
-summarization / analysis / extraction / chewing
+clean .txt transcript
+    ↓
+downstream analysis
 ```
 
-Example:
+Typical use cases include:
 
-> "Shoggy, chew https://www.youtube.com/watch?v=..."
-
-A coding agent with access to this repository can:
-
-1. run the transcript generator with the supplied URL;
-2. write the transcript into the repository's `transcripts/` directory;
-3. open the generated `.txt` file;
-4. preprocess or analyze it directly.
-
-The purpose is to eliminate the manual workflow of:
-
-1. opening YouTube;
-2. finding or copying a transcript;
-3. cleaning it;
-4. pasting it into an AI conversation.
+- preparing video transcripts for LLM analysis;
+- extracting source material for research or note-taking;
+- generating clean plain-text transcripts for local workflows;
+- reducing the need to manually copy and clean YouTube captions;
+- providing coding agents with deterministic transcript files for further processing.
 
 ---
 
-## Design Goals
+## Features
 
-### Local first
-
-Transcript processing should happen locally whenever possible.
-
-The normal path uses an existing YouTube caption track rather than retranscribing audio unnecessarily.
-
-A future fallback may use local speech-to-text when captions are unavailable.
-
-### Agent friendly
-
-The program should work cleanly inside automated coding-agent workflows.
-
-It should:
-
-- accept a YouTube URL as a command-line argument;
-- require no interactive input during normal operation;
-- write output to a deterministic repository folder;
-- produce plain UTF-8 `.txt` files;
-- print the resulting file path;
-- return a nonzero exit code when generation fails.
-
-### Plain text output
-
-The primary output format is `.txt`.
-
-The transcript should contain spoken content with unnecessary caption fragmentation removed.
-
-Metadata should remain minimal so downstream agents receive mostly transcript rather than wrapper material.
-
-### Predictable storage
-
-Generated transcripts live under:
-
-```text
-transcripts/
-```
-
-Example:
-
-```text
-yt-transcript-generator/
-├── README.md
-├── requirements.txt
-├── ytx.py
-├── .gitignore
-└── transcripts/
-    ├── .gitkeep
-    ├── sdsxk3yatkA.txt
-    └── another-video-id.txt
-```
-
-The `transcripts/` directory is intentionally inside the repository so coding agents operating on the repository can immediately access generated transcript files.
-
-Generated transcripts should normally remain untracked by Git.
+- Accepts standard YouTube URLs and video IDs
+- Retrieves existing YouTube caption tracks when available
+- Distinguishes manually created captions from automatically generated captions
+- Falls back to local MLX Whisper transcription when captions cannot be retrieved
+- Cleans caption fragmentation into readable paragraphs
+- Supports optional paragraph-level timestamps
+- Writes UTF-8 `.txt` transcript files
+- Writes companion `.json` metadata files
+- Uses deterministic filenames based on the YouTube video ID
+- Reuses existing transcripts unless regeneration is explicitly requested
+- Emits machine-readable status information to stdout
+- Performs transcription locally without requiring a cloud transcription API
 
 ---
 
-## Planned CLI
+## Installation
+
+Clone the repository and create an isolated Python environment:
+
+```bash
+git clone https://github.com/sonya-yu-z/yt-transcript-generator.git
+cd yt-transcript-generator
+
+python3 -m venv .venv
+source .venv/bin/activate
+
+python -m pip install -r requirements.txt
+```
+
+---
+
+## Usage
 
 Basic usage:
 
@@ -113,31 +77,70 @@ Basic usage:
 python ytx.py "https://www.youtube.com/watch?v=sdsxk3yatkA"
 ```
 
-Expected output:
+The generated transcript and metadata are written directly to the user's Downloads directory.
+
+Example output:
 
 ```text
-RETRIEVED
-transcripts/sdsxk3yatkA.txt
+VIDEO_ID=sdsxk3yatkA
+CAPTION_RETRIEVAL=RETRIEVED
+STATUS=RETRIEVED
+SOURCE=YOUTUBE_AUTO_CAPTIONS
+LANGUAGE=en
+TRANSCRIPT=/Users/<user>/Downloads/sdsxk3yatkA.txt
+METADATA=/Users/<user>/Downloads/sdsxk3yatkA.json
 ```
 
-The program should print the final transcript path so an agent can immediately open it.
+---
 
-Possible future convenience command:
+## Command-Line Options
+
+Include paragraph-level timestamps:
 
 ```bash
-ytx "https://www.youtube.com/watch?v=sdsxk3yatkA"
+python ytx.py "<URL>" --timestamps
+```
+
+Regenerate a transcript even if one already exists:
+
+```bash
+python ytx.py "<URL>" --force
+```
+
+Disable local Whisper fallback:
+
+```bash
+python ytx.py "<URL>" --no-whisper
+```
+
+Prefer one or more caption languages:
+
+```bash
+python ytx.py "<URL>" -l en
+```
+
+Multiple preferred languages can be supplied:
+
+```bash
+python ytx.py "<URL>" -l en -l zh
+```
+
+Force a language for local Whisper transcription:
+
+```bash
+python ytx.py "<URL>" --whisper-language en
 ```
 
 ---
 
 ## Retrieval Strategy
 
-The preferred order is:
+The preferred path is:
 
 ```text
 YouTube URL
     ↓
-existing YouTube caption track
+existing caption track
     ↓
 RETRIEVED
     ↓
@@ -155,12 +158,16 @@ YouTube captions
     ↓
 NOT_RETRIEVED
     ↓
-optional local speech-to-text fallback
+local MLX Whisper transcription
+    ↓
+clean transcript
     ↓
 .txt
 ```
 
-The program should distinguish:
+The program distinguishes among explicit operational states rather than silently treating failed retrieval as an empty result.
+
+Examples include:
 
 ```text
 RETRIEVED
@@ -169,131 +176,165 @@ SOURCE_UNAVAILABLE
 TRANSCRIPTION_FAILED
 ```
 
-A failed retrieval should not silently produce an empty transcript.
+A failure to retrieve captions does not imply that captions or transcript content do not exist.
 
 ---
 
 ## Output
 
-The primary transcript output should be readable plain text:
+Each successful run produces two files in `~/Downloads`.
+
+### Transcript
+
+```text
+sdsxk3yatkA.txt
+```
+
+The transcript file contains cleaned plain text intended for downstream analysis.
+
+Example:
 
 ```text
 KA is a 49 year old man presenting to the emergency room with fever,
-headache, and confusion...
+headache, and confusion.
 
 Five years ago, KA wasn't feeling well...
 ```
 
-The program may optionally retain lightweight metadata in a companion file later, but the default `.txt` should remain optimized for model preprocessing.
-
-Possible future sidecar:
+### Metadata
 
 ```text
-transcripts/sdsxk3yatkA.json
+sdsxk3yatkA.json
 ```
 
-containing:
+The metadata sidecar records information such as:
 
 ```json
 {
   "video_id": "sdsxk3yatkA",
-  "source": "youtube_auto_captions",
+  "title": "Example video",
+  "retrieval_status": "RETRIEVED",
+  "transcript_source": "YOUTUBE_AUTO_CAPTIONS",
   "language": "en",
-  "retrieval_status": "RETRIEVED"
+  "youtube_auto_generated": true
 }
 ```
 
-This keeps epistemic metadata separate from the text fed to the model.
+Keeping metadata separate from the transcript allows the `.txt` file to remain optimized for downstream model consumption while preserving retrieval provenance.
 
 ---
 
-## Intended Agent Workflow
+## Agent Workflows
 
-When this repository is available to a coding agent, a request such as:
+The command-line interface is designed to be usable by local coding agents.
 
-> "Chew https://www.youtube.com/watch?v=sdsxk3yatkA"
-
-can be interpreted as:
+A typical automated workflow is:
 
 ```text
 1. Run:
    python ytx.py "<URL>"
 
-2. Capture the generated transcript path.
+2. Read the emitted TRANSCRIPT path.
 
-3. Read:
-   transcripts/<video-id>.txt
+3. Open the generated .txt file.
 
-4. Perform the requested preprocessing or analysis.
-
-5. Use the transcript as the source material rather than relying on memory
-   or trying to reconstruct the video from web search.
+4. Perform the requested analysis, summarization, extraction, or transformation.
 ```
 
-The transcript generator handles retrieval.
+This separates deterministic retrieval and preprocessing from higher-cost reasoning tasks.
 
-The agent handles reasoning.
+---
+
+## Local Speech-to-Text Fallback
+
+When YouTube captions cannot be retrieved, the tool can fall back to local transcription using MLX Whisper.
+
+The current default model is:
+
+```text
+mlx-community/whisper-large-v3-turbo
+```
+
+This path is intended primarily for Apple Silicon systems.
+
+Audio is downloaded temporarily, transcribed locally, and removed after processing.
+
+No cloud transcription API is required.
+
+---
+
+## Project Structure
+
+```text
+yt-transcript-generator/
+├── README.md
+├── requirements.txt
+├── ytx.py
+└── .gitignore
+```
+
+Generated transcripts are written outside the repository to the user's Downloads directory.
 
 ---
 
 ## Current Scope
 
-Initial version:
+Implemented:
 
-- [x] local Python project
-- [x] isolated virtual environment
-- [x] `youtube-transcript-api`
-- [ ] URL → transcript
-- [ ] clean caption fragmentation
-- [ ] `.txt` output
-- [ ] deterministic `transcripts/` directory
-- [ ] useful exit codes
-- [ ] agent-oriented stdout
-- [ ] local speech-to-text fallback
+- [x] local Python CLI
+- [x] isolated virtual environment support
+- [x] YouTube URL and video-ID parsing
+- [x] caption retrieval
+- [x] caption cleanup and paragraphization
+- [x] `.txt` transcript output
+- [x] `.json` metadata sidecar
+- [x] deterministic video-ID filenames
+- [x] explicit retrieval-status reporting
+- [x] local MLX Whisper fallback
+- [x] optional timestamps
+- [x] force-regeneration option
+- [x] agent-oriented stdout
 
 Not currently in scope:
 
 - web application
 - user accounts
-- cloud transcription
-- commercial API
 - hosted transcript database
+- cloud transcription service
 - analytics
-- summarization inside the transcript program
+- built-in summarization
+- built-in LLM inference
 
-Summarization and analysis belong downstream with the shoggoth.
+The project intentionally stops at retrieval and preprocessing.
 
 ---
 
-## Philosophy
+## Design Philosophy
 
-Do not spend frontier-model tokens reconstructing information that can be retrieved deterministically first.
+Deterministic retrieval and preprocessing should happen before expensive model reasoning whenever possible.
 
 ```text
 retrieve cheaply
         ↓
-store plainly
+normalize locally
         ↓
-reason expensively
+reason downstream
 ```
 
-Transcript generation is preprocessing infrastructure.
+The transcript generator handles retrieval and preprocessing.
 
-The shoggoth should chew the transcript, not fight YouTube's interface.
-```
+Downstream systems handle interpretation.
 
-For `.gitignore`, add:
+---
 
-```gitignore
-.venv/
-__pycache__/
-*.pyc
-.DS_Store
+## Notes
 
-# Generated transcript working data
-transcripts/*.txt
-transcripts/*.json
+This project uses `youtube-transcript-api` for caption retrieval.
 
-# Keep directory in repo
-!transcripts/.gitkeep
-```
+That library relies on an undocumented YouTube interface, which may change without notice. Caption retrieval may therefore occasionally break until the upstream library is updated.
+
+Generated transcripts are local outputs and are not distributed or committed by this repository.
+
+Users are responsible for ensuring that their use of transcript content complies with applicable copyright, platform, and other legal requirements.
+
+---
