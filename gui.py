@@ -485,12 +485,38 @@ class TranscriptApp:
         )
 
     def paste_url(self):
+        text = ""
+
+        # First try Tk's clipboard bridge.
         try:
-            self.url_var.set(
-                self.root.clipboard_get().strip()
-            )
+            text = self.root.clipboard_get().strip()
         except tk.TclError:
             pass
+
+        # macOS fallback: packaged Tk apps can occasionally fail to read
+        # the system clipboard even though pbpaste can.
+        if not text:
+            try:
+                result = subprocess.run(
+                    ["pbpaste"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                text = result.stdout.strip()
+            except Exception:
+                pass
+
+        if not text:
+            self.write_status(
+                "Clipboard is empty or unavailable.\n",
+                clear=True,
+            )
+            return
+
+        self.url_var.set(text)
+        self.url_entry.icursor("end")
+        self.url_entry.focus_set()
 
     def set_running(self, running: bool):
         self.running = running
@@ -583,6 +609,10 @@ class TranscriptApp:
             *extra_args,
         ]
 
+        return_code = -1
+        combined = ""
+        transcript_path = None
+
         try:
             result = subprocess.run(
                 command,
@@ -591,9 +621,9 @@ class TranscriptApp:
                 text=True,
             )
 
+            return_code = result.returncode
             stdout = result.stdout or ""
             stderr = result.stderr or ""
-            transcript_path = None
 
             for line in stdout.splitlines():
                 if line.startswith("TRANSCRIPT="):
@@ -620,25 +650,21 @@ class TranscriptApp:
                     "Process finished with no output.\n"
                 )
 
-            self.root.after(
-                0,
-                self.finish_run,
-                result.returncode,
-                combined,
-                transcript_path,
+        except Exception as exc:
+            combined = (
+                f"GUI_ERROR="
+                f"{type(exc).__name__}: "
+                f"{exc}\n"
             )
 
-        except Exception as exc:
+        finally:
+            # Always return control to the GUI and re-enable the buttons.
             self.root.after(
                 0,
                 self.finish_run,
-                -1,
-                (
-                    f"GUI_ERROR="
-                    f"{type(exc).__name__}: "
-                    f"{exc}\n"
-                ),
-                None,
+                return_code,
+                combined,
+                transcript_path,
             )
 
     def finish_run(
